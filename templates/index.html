@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plant Disease Detection System for Sustainable Agriculture</title>
+    <style>
+        body {
+            background-color: black;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        #upload-box {
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: green;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:hover {
+            background-color: darkgreen;
+        }
+        video, canvas {
+            margin-top: 20px;
+            display: none;
+        }
+        .output {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Plant Disease Detection System for Sustainable Agriculture</h1>
+    <div id="upload-box">
+        <input type="file" id="imageUpload" accept="image/*">
+        <button id="submitBtn">Submit</button>
+        <button id="cameraBtn">Open Camera</button>
+        <button id="captureBtn" style="display: none;">Capture</button>
+    </div>
+    <video id="video" autoplay></video>
+    <canvas id="canvas"></canvas>
+    <div class="output">
+        <p id="prediction"></p>
+        <img id="resultImage" src="" alt="" style="display: none; max-width: 100%;">
+    </div>
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const captureBtn = document.getElementById('captureBtn');
+
+        document.getElementById('cameraBtn').addEventListener('click', () => {
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => {
+                    video.style.display = 'block';
+                    video.srcObject = stream;
+                    captureBtn.style.display = 'inline-block';
+                })
+                .catch(err => alert('Camera access denied!'));
+        });
+
+        captureBtn.addEventListener('click', () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Stop the camera stream
+            const stream = video.srcObject;
+            const tracks = stream.getTracks();
+            tracks.forEach(track => track.stop());
+            video.style.display = 'none';
+            captureBtn.style.display = 'none';
+
+            // Convert the image to a blob and send to the server
+            canvas.toBlob(blob => {
+                const formData = new FormData();
+                formData.append('file', blob, 'captured.jpg');
+                formData.append('from_camera', 'true');
+
+                fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert(data.error);
+                    } else {
+                        document.getElementById('prediction').innerText = `Prediction: ${data.prediction}`;
+                        const resultImage = document.getElementById('resultImage');
+                        resultImage.src = data.result_image;
+                        resultImage.style.display = 'block';
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+            }, 'image/jpeg');
+        });
+
+        document.getElementById('submitBtn').addEventListener('click', () => {
+            const fileInput = document.getElementById('imageUpload');
+            if (fileInput.files.length === 0) {
+                alert('Please upload an image!');
+                return;
+            }
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('from_camera', 'false');
+
+            fetch('/predict', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    document.getElementById('prediction').innerText = `Prediction: ${data.prediction}`;
+                    const resultImage = document.getElementById('resultImage');
+                    resultImage.src = data.result_image;
+                    resultImage.style.display = 'block';
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        });
+    </script>
+</body>
+</html>
